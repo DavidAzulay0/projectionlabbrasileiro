@@ -1,6 +1,15 @@
 import streamlit as st
 import sqlite3
 
+import os
+
+if not os.path.exists("simulador_financeiro.db"):
+    conn = sqlite3.connect("simulador_financeiro.db")
+    with open("schema.sql", "r") as f:
+        conn.executescript(f.read())
+    conn.close()
+
+
 # Conectar ao banco de dados
 conn = sqlite3.connect("simulador_financeiro.db")
 cursor = conn.cursor()
