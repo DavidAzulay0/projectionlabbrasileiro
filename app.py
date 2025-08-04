@@ -3,11 +3,11 @@ import sqlite3
 import pandas as pd
 
 # Conexão com o banco SQLite
-conn = sqlite3.connect("database.db", check_same_thread=False)
-cursor = conn.cursor()
+DB_PATH = os.path.join("data", "projectionlab_mvp.db")
 
 # Funções utilitárias
 def carregar_dados(tabela):
+    conn = sqlite3.connect(DB_PATH)
     return pd.read_sql_query(f"SELECT * FROM {tabela} WHERE ativo = 1", conn)
 
 def atualizar_registro(tabela, id, colunas, valores):
