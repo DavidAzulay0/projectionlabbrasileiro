@@ -1,74 +1,79 @@
 import streamlit as st
 import sqlite3
+import pandas as pd
 
-import os
-
-if not os.path.exists("simulador_financeiro.db"):
-    conn = sqlite3.connect("simulador_financeiro.db")
-    with open("schema.sql", "r") as f:
-        conn.executescript(f.read())
-    conn.close()
-
-
-# Conectar ao banco de dados
-conn = sqlite3.connect("simulador_financeiro.db")
+# Conexão com o banco SQLite
+conn = sqlite3.connect("database.db", check_same_thread=False)
 cursor = conn.cursor()
 
-st.title("💰 Simulador Financeiro de Casal - MVP")
+# Funções utilitárias
+def carregar_dados(tabela):
+    return pd.read_sql_query(f"SELECT * FROM {tabela} WHERE ativo = 1", conn)
 
-st.sidebar.header("Menu")
-opcao = st.sidebar.selectbox("Selecione uma seção", ["Entradas", "Saídas", "Bens", "Premissas Gerais"])
+def atualizar_registro(tabela, id, colunas, valores):
+    sets = ', '.join([f"{col} = ?" for col in colunas])
+    cursor.execute(f"UPDATE {tabela} SET {sets} WHERE id = ?", (*valores, id))
+    conn.commit()
 
-# --- Entradas ---
-if opcao == "Entradas":
-    st.subheader("Cadastrar Nova Entrada")
-    nome = st.text_input("Nome da Entrada")
-    valor = st.number_input("Valor Anual (R$)", min_value=0.0)
-    fonte = st.selectbox("Fonte", ["parceiro1", "parceiro2", "casal"])
-    if st.button("Adicionar Entrada"):
-        cursor.execute("INSERT INTO Entradas (nome, valor_anual, fonte) VALUES (?, ?, ?)", (nome, valor, fonte))
-        conn.commit()
-        st.success("Entrada adicionada com sucesso!")
+def deletar_registro(tabela, id):
+    cursor.execute(f"UPDATE {tabela} SET ativo = 0 WHERE id = ?", (id,))
+    conn.commit()
 
-# --- Saídas ---
-elif opcao == "Saídas":
-    st.subheader("Cadastrar Nova Saída")
-    nome = st.text_input("Nome da Saída")
-    valor = st.number_input("Valor Anual (R$)", min_value=0.0)
-    tipo = st.text_input("Tipo (ex: moradia, transporte)")
-    if st.button("Adicionar Saída"):
-        cursor.execute("INSERT INTO Saidas (nome, valor_anual, tipo) VALUES (?, ?, ?)", (nome, valor, tipo))
-        conn.commit()
-        st.success("Saída adicionada com sucesso!")
+# Título principal
+st.title("Editor de Entradas, Saídas e Bens")
 
-# --- Bens ---
-elif opcao == "Bens":
-    st.subheader("Cadastrar Novo Bem")
-    nome = st.text_input("Nome do Bem")
-    tipo = st.selectbox("Tipo", ["imovel", "reserva_emergencia", "investimento", "divida"])
-    valor = st.number_input("Valor Atual (R$)", min_value=0.0)
-    rendimento = st.number_input("Rendimento Esperado (%)", min_value=0.0)
-    passivo = st.checkbox("É Passivo?")
-    if st.button("Adicionar Bem"):
-        cursor.execute("""
-            INSERT INTO Bens (nome, tipo, valor, rendimento_esperado, passivo) 
-            VALUES (?, ?, ?, ?, ?)""", (nome, tipo, valor, rendimento, passivo))
-        conn.commit()
-        st.success("Bem adicionado com sucesso!")
+aba = st.radio("Escolha a categoria:", ["Entradas", "Saídas", "Bens"])
 
-# --- Premissas Gerais ---
-elif opcao == "Premissas Gerais":
-    st.subheader("Definir Premissas Financeiras")
-    ano = st.number_input("Ano Inicial", min_value=2020, step=1)
-    inflacao = st.number_input("Taxa de Inflação (%)", min_value=0.0)
-    crescimento_entrada = st.number_input("Crescimento Entradas (%)", min_value=0.0)
-    crescimento_saida = st.number_input("Crescimento Saídas (%)", min_value=0.0)
-    juros_divida = st.number_input("Juros Dívidas (%)", min_value=0.0)
-    rendimento_inv = st.number_input("Rendimento Investimentos (%)", min_value=0.0)
-    if st.button("Salvar Premissas"):
-        cursor.execute("""
-            INSERT INTO PremissasGerais (ano_inicial, taxa_inflacao, taxa_crescimento_entradas, taxa_crescimento_saidas, taxa_juros_dividas, taxa_rendimento_investimentos) 
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (ano, inflacao, crescimento_entrada, crescimento_saida, juros_divida, rendimento_inv))
-        conn.commit()
-        st.success("Premissas salvas com sucesso!")
+if aba == "Entradas":
+    st.subheader("Entradas Ativas")
+    df = carregar_dados("Entradas")
+    for _, row in df.iterrows():
+        with st.expander(f"{row['nome']} - R$ {row['valor_anual']:.2f}/ano"):
+            novo_nome = st.text_input(f"Nome #{row['id']}", row['nome'], key=f"nome_entrada_{row['id']}")
+            novo_valor = st.number_input(f"Valor anual #{row['id']}", value=row['valor_anual'], key=f"valor_entrada_{row['id']}")
+            nova_fonte = st.text_input(f"Fonte #{row['id']}", row['fonte'] or "", key=f"fonte_entrada_{row['id']}")
+            if st.button("Salvar", key=f"salvar_entrada_{row['id']}"):
+                atualizar_registro("Entradas", row['id'], ["nome", "valor_anual", "fonte"], [novo_nome, novo_valor, nova_fonte])
+                st.success("Entrada atualizada!")
+                st.experimental_rerun()
+            if st.button("Excluir", key=f"excluir_entrada_{row['id']}"):
+                deletar_registro("Entradas", row['id'])
+                st.warning("Entrada excluída.")
+                st.experimental_rerun()
+
+elif aba == "Saídas":
+    st.subheader("Saídas Ativas")
+    df = carregar_dados("Saidas")
+    for _, row in df.iterrows():
+        with st.expander(f"{row['nome']} - R$ {row['valor_anual']:.2f}/ano"):
+            novo_nome = st.text_input(f"Nome #{row['id']}", row['nome'], key=f"nome_saida_{row['id']}")
+            novo_valor = st.number_input(f"Valor anual #{row['id']}", value=row['valor_anual'], key=f"valor_saida_{row['id']}")
+            novo_tipo = st.text_input(f"Tipo #{row['id']}", row['tipo'], key=f"tipo_saida_{row['id']}")
+            if st.button("Salvar", key=f"salvar_saida_{row['id']}"):
+                atualizar_registro("Saidas", row['id'], ["nome", "valor_anual", "tipo"], [novo_nome, novo_valor, novo_tipo])
+                st.success("Saída atualizada!")
+                st.experimental_rerun()
+            if st.button("Excluir", key=f"excluir_saida_{row['id']}"):
+                deletar_registro("Saidas", row['id'])
+                st.warning("Saída excluída.")
+                st.experimental_rerun()
+
+elif aba == "Bens":
+    st.subheader("Bens Ativos")
+    df = carregar_dados("Bens")
+    for _, row in df.iterrows():
+        with st.expander(f"{row['nome']} - R$ {row['valor']:.2f}"):
+            novo_nome = st.text_input(f"Nome #{row['id']}", row['nome'], key=f"nome_bem_{row['id']}")
+            novo_valor = st.number_input(f"Valor #{row['id']}", value=row['valor'], key=f"valor_bem_{row['id']}")
+            novo_tipo = st.text_input(f"Tipo #{row['id']}", row['tipo'], key=f"tipo_bem_{row['id']}")
+            novo_rendimento = st.number_input(f"Rendimento esperado #{row['id']}", value=row['rendimento_esperado'], key=f"rendimento_bem_{row['id']}")
+            novo_passivo = st.checkbox(f"É passivo?", value=bool(row['passivo']), key=f"passivo_bem_{row['id']}")
+            if st.button("Salvar", key=f"salvar_bem_{row['id']}"):
+                atualizar_registro("Bens", row['id'], ["nome", "valor", "tipo", "rendimento_esperado", "passivo"],
+                                   [novo_nome, novo_valor, novo_tipo, novo_rendimento, int(novo_passivo)])
+                st.success("Bem atualizado!")
+                st.experimental_rerun()
+            if st.button("Excluir", key=f"excluir_bem_{row['id']}"):
+                deletar_registro("Bens", row['id'])
+                st.warning("Bem excluído.")
+                st.experimental_rerun()
