@@ -89,4 +89,7 @@ CREATE TABLE PremissasGerais (
     taxa_crescimento_saidas REAL,
     taxa_juros_dividas REAL,
     taxa_rendimento_investimentos REAL
+    
 );
+ALTER TABLE Premissas ADD COLUMN ativo INTEGER DEFAULT 1;
+
