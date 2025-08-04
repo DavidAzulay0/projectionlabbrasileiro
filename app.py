@@ -4,7 +4,7 @@ import os
 import pandas as pd
 
 # Conexão com o banco SQLite
-DB_PATH = os.path.join("data", "projectionlab_mvp.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "projectionlab_mvp.db")
 
 # Funções utilitárias
 def carregar_dados(tabela):
